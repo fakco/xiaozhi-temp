@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>表情预览 - 动态模拟</title>
+  <style>
+    body { font-family: '微软雅黑', Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
+    h1 { text-align: center; margin-top: 30px; }
+    .container { display: flex; flex-wrap: wrap; justify-content: center; }
+    .face-block { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px #0001; margin: 18px; padding: 18px 18px 10px 18px; width: 220px; text-align: center; }
+    .face-block canvas { background: #222; border-radius: 8px; margin-bottom: 8px; }
+    .face-title { font-size: 1.1em; margin-bottom: 6px; }
+    .btn { margin: 10px 0 0 0; padding: 4px 12px; border: none; border-radius: 4px; background: #4caf50; color: #fff; cursor: pointer; font-size: 1em; }
+    .btn:active { background: #388e3c; }
+  </style>
+</head>
+<body>
+  <h1>表情预览（动态模拟）</h1>
+  <div class="container" id="faces-container"></div>
+  <script>
+// =====================
+// 1. 常量定义
+// =====================
+const DISPLAY_WIDTH = 128;
+const DISPLAY_HEIGHT = 64;
+const CornerType = {
+  T_R: 0, // Top Right
+  T_L: 1, // Top Left
+  B_L: 2, // Bottom Left
+  B_R: 3  // Bottom Right
+};
+
+// =====================
+// 2. 表情参数定义（同EyePresets.h）
+// =====================
+const presets = {
+  // 基础表情
+  Preset_Normal:      { OffsetX:0, OffsetY:0, Height:40, Width:40, Slope_Top:0, Slope_Bottom:0, Radius_Top:8, Radius_Bottom:8, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  
+  // 生气系列
+  Preset_Angry:       { OffsetX:-3, OffsetY:0, Height:20, Width:40, Slope_Top:0.3, Slope_Bottom:0, Radius_Top:2, Radius_Bottom:12, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Furious:     { OffsetX:-2, OffsetY:0, Height:30, Width:40, Slope_Top:0.4, Slope_Bottom:0, Radius_Top:2, Radius_Bottom:8, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  
+  // 开心系列
+  Preset_Glee:        { OffsetX:0, OffsetY:0, Height:8, Width:40, Slope_Top:0, Slope_Bottom:0, Radius_Top:8, Radius_Bottom:0, Inverse_Radius_Top:0, Inverse_Radius_Bottom:5, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Happy:       { OffsetX:0, OffsetY:0, Height:10, Width:40, Slope_Top:0, Slope_Bottom:0, Radius_Top:10, Radius_Bottom:0, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  
+  // 难过系列
+  Preset_Sad:         { OffsetX:0, OffsetY:0, Height:15, Width:40, Slope_Top:-0.5, Slope_Bottom:0, Radius_Top:1, Radius_Bottom:10, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Worried:     { OffsetX:0, OffsetY:0, Height:25, Width:40, Slope_Top:-0.1, Slope_Bottom:0, Radius_Top:6, Radius_Bottom:10, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  
+  // 其他表情
+  Preset_Focused:     { OffsetX:0, OffsetY:0, Height:14, Width:40, Slope_Top:0.2, Slope_Bottom:0, Radius_Top:3, Radius_Bottom:1, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Annoyed:     { OffsetX:0, OffsetY:0, Height:12, Width:40, Slope_Top:0, Slope_Bottom:0, Radius_Top:0, Radius_Bottom:10, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Surprised:   { OffsetX:-2,OffsetY:0, Height:45, Width:45, Slope_Top:0, Slope_Bottom:0, Radius_Top:16, Radius_Bottom:16, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Skeptic:     { OffsetX:0, OffsetY:-6,Height:26, Width:40, Slope_Top:0.3, Slope_Bottom:0, Radius_Top:1, Radius_Bottom:10, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Frustrated:  { OffsetX:3, OffsetY:-5,Height:12, Width:40, Slope_Top:0, Slope_Bottom:0, Radius_Top:0, Radius_Bottom:10, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Unimpressed: { OffsetX:3, OffsetY:0, Height:12, Width:40, Slope_Top:0, Slope_Bottom:0, Radius_Top:1, Radius_Bottom:10, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Sleepy:      { OffsetX:0, OffsetY:-2,Height:14, Width:40, Slope_Top:-0.5, Slope_Bottom:-0.5, Radius_Top:3, Radius_Bottom:3, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Suspicious:  { OffsetX:0, OffsetY:0, Height:22, Width:40, Slope_Top:0.2, Slope_Bottom:0, Radius_Top:8, Radius_Bottom:3, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Squint:      { OffsetX:-10,OffsetY:-3,Height:35, Width:35, Slope_Top:0, Slope_Bottom:0, Radius_Top:8, Radius_Bottom:8, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Scared:      { OffsetX:-3, OffsetY:0, Height:40, Width:40, Slope_Top:-0.1, Slope_Bottom:0, Radius_Top:12, Radius_Bottom:8, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 },
+  Preset_Awe:         { OffsetX:2, OffsetY:0, Height:35, Width:45, Slope_Top:-0.1, Slope_Bottom:0.1, Radius_Top:12, Radius_Bottom:12, Inverse_Radius_Top:0, Inverse_Radius_Bottom:0, Inverse_Offset_Top:0, Inverse_Offset_Bottom:0 }
+};
+
+// =====================
+// 3. 绘制辅助函数（同EyeDrawer.h）
+// =====================
+class EyeDrawer {
+  static FillRectangle(ctx, x0, y0, x1, y1, color) {
+    // Always draw from TL->BR
+    const l = Math.min(x0, x1);
+    const r = Math.max(x0, x1);
+    const t = Math.min(y0, y1);
+    const b = Math.max(y0, y1);
+    const w = r - l;
+    const h = b - t;
+    
+    ctx.fillStyle = color === 1 ? '#fff' : '#222';
+    ctx.fillRect(l, t, w, h);
+  }
+
+  static FillEllipseCorner(ctx, corner, x0, y0, rx, ry, color) {
+    if (rx < 2 || ry < 2) return;
+    
+    const rx2 = rx * rx;
+    const ry2 = ry * ry;
+    const fx2 = 4 * rx2;
+    const fy2 = 4 * ry2;
+    
+    ctx.fillStyle = color === 1 ? '#fff' : '#222';
+    
+    // 使用Bresenham算法绘制椭圆四分之一
+    let x = 0, y = ry;
+    let s = 2 * ry2 + rx2 * (1 - 2 * ry);
+    
+    // 第一部分
+    while (ry2 * x <= rx2 * y) {
+      switch (corner) {
+        case CornerType.T_R:
+          ctx.fillRect(x0, y0 - y, x, 1);
+          break;
+        case CornerType.T_L:
+          ctx.fillRect(x0 - x, y0 - y, x, 1);
+          break;
+        case CornerType.B_R:
+          ctx.fillRect(x0, y0 + y - 1, x, 1);
+          break;
+        case CornerType.B_L:
+          ctx.fillRect(x0 - x, y0 + y - 1, x, 1);
+          break;
+      }
+      
+      if (s >= 0) {
+        s += fx2 * (1 - y);
+        y--;
+      }
+      s += ry2 * ((4 * x) + 6);
+      x++;
+    }
+    
+    // 第二部分
+    x = rx;
+    y = 0;
+    s = 2 * rx2 + ry2 * (1 - 2 * rx);
+    
+    while (rx2 * y <= ry2 * x) {
+      switch (corner) {
+        case CornerType.T_R:
+          ctx.fillRect(x0, y0 - y, x, 1);
+          break;
+        case CornerType.T_L:
+          ctx.fillRect(x0 - x, y0 - y, x, 1);
+          break;
+        case CornerType.B_R:
+          ctx.fillRect(x0, y0 + y, x, 1);
+          break;
+        case CornerType.B_L:
+          ctx.fillRect(x0 - x, y0 + y, x, 1);
+          break;
+      }
+      
+      if (s >= 0) {
+        s += fy2 * (1 - x);
+        x--;
+      }
+      s += rx2 * ((4 * y) + 6);
+      y++;
+    }
+  }
+
+  static FillRectangularTriangle(ctx, x0, y0, x1, y1, color) {
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x1, y0);
+    ctx.closePath();
+    ctx.fillStyle = color === 1 ? '#fff' : '#222';
+    ctx.fill();
+  }
+
+  static Draw(ctx, centerX, centerY, config, isRightEye = false) {
+    // C++原版镜像斜率处理：左眼Slope_Top，右眼-Slope_Top
+    const slope_top = isRightEye ? -config.Slope_Top : config.Slope_Top;
+    const slope_bottom = isRightEye ? -config.Slope_Bottom : config.Slope_Bottom;
+    const delta_y_top = config.Height * slope_top / 2.0;
+    const delta_y_bottom = config.Height * slope_bottom / 2.0;
+    
+    // 总高度（考虑斜率）
+    const totalHeight = config.Height + Math.abs(delta_y_top) + Math.abs(delta_y_bottom);
+    
+    // 调整圆角半径（如果超出高度）
+    if (config.Radius_Bottom > 0 && config.Radius_Top > 0 && 
+        totalHeight - 1 < config.Radius_Bottom + config.Radius_Top) {
+      const ratio = (totalHeight - 1) / (config.Radius_Bottom + config.Radius_Top);
+      config.Radius_Top *= ratio;
+      config.Radius_Bottom *= ratio;
+    }
+    
+    // 计算内部边角点
+    const TLc_y = centerY + config.OffsetY - config.Height/2 + config.Radius_Top - delta_y_top;
+    const TLc_x = centerX + config.OffsetX - config.Width/2 + config.Radius_Top;
+    const TRc_y = centerY + config.OffsetY - config.Height/2 + config.Radius_Top + delta_y_top;
+    const TRc_x = centerX + config.OffsetX + config.Width/2 - config.Radius_Top;
+    const BLc_y = centerY + config.OffsetY + config.Height/2 - config.Radius_Bottom - delta_y_bottom;
+    const BLc_x = centerX + config.OffsetX - config.Width/2 + config.Radius_Bottom;
+    const BRc_y = centerY + config.OffsetY + config.Height/2 - config.Radius_Bottom + delta_y_bottom;
+    const BRc_x = centerX + config.OffsetX + config.Width/2 - config.Radius_Bottom;
+    
+    // 填充眼睛中心
+    this.FillRectangle(ctx, TLc_x, TLc_y, BRc_x, BRc_y, 1);
+    
+    // 填充到圆角边缘
+    this.FillRectangle(ctx, TRc_x, TRc_y, BRc_x + config.Radius_Bottom, BRc_y, 1); // 右
+    this.FillRectangle(ctx, TLc_x - config.Radius_Top, TLc_y, BLc_x, BLc_y, 1); // 左
+    this.FillRectangle(ctx, TLc_x, TLc_y - config.Radius_Top, TRc_x, TRc_y, 1); // 上
+    this.FillRectangle(ctx, BLc_x, BLc_y, BRc_x, BRc_y + config.Radius_Bottom, 1); // 下
+    
+    // 绘制圆角
+    if (config.Radius_Top > 0) {
+      this.FillEllipseCorner(ctx, CornerType.T_L, TLc_x, TLc_y, config.Radius_Top, config.Radius_Top, 1);
+      this.FillEllipseCorner(ctx, CornerType.T_R, TRc_x, TRc_y, config.Radius_Top, config.Radius_Top, 1);
+    }
+    if (config.Radius_Bottom > 0) {
+      this.FillEllipseCorner(ctx, CornerType.B_L, BLc_x, BLc_y, config.Radius_Bottom, config.Radius_Bottom, 1);
+      this.FillEllipseCorner(ctx, CornerType.B_R, BRc_x, BRc_y, config.Radius_Bottom, config.Radius_Bottom, 1);
+    }
+    
+    // 处理反向圆角（如果有）
+    if (config.Inverse_Radius_Top > 0 || config.Inverse_Radius_Bottom > 0) {
+      const inverse_width = config.Width * 0.8;
+      const inverse_height = config.Height * 0.8;
+      
+      const iTLc_y = centerY + config.OffsetY - inverse_height/2 + config.Inverse_Radius_Top;
+      const iTLc_x = centerX + config.OffsetX - inverse_width/2 + config.Inverse_Radius_Top;
+      const iTRc_y = centerY + config.OffsetY - inverse_height/2 + config.Inverse_Radius_Top;
+      const iTRc_x = centerX + config.OffsetX + inverse_width/2 - config.Inverse_Radius_Top;
+      const iBLc_y = centerY + config.OffsetY + inverse_height/2 - config.Inverse_Radius_Bottom;
+      const iBLc_x = centerX + config.OffsetX - inverse_width/2 + config.Inverse_Radius_Bottom;
+      const iBRc_y = centerY + config.OffsetY + inverse_height/2 - config.Inverse_Radius_Bottom;
+      const iBRc_x = centerX + config.OffsetX + inverse_width/2 - config.Inverse_Radius_Bottom;
+      
+      // 填充反向区域
+      this.FillRectangle(ctx, iTLc_x, iTLc_y, iTRc_x, iTRc_y, 0);
+      this.FillRectangle(ctx, iBLc_x, iBLc_y, iBRc_x, iBRc_y, 0);
+      
+      // 绘制反向圆角
+      if (config.Inverse_Radius_Top > 0) {
+        this.FillEllipseCorner(ctx, CornerType.T_L, iTLc_x, iTLc_y, 
+                              config.Inverse_Radius_Top, config.Inverse_Radius_Top, 0);
+        this.FillEllipseCorner(ctx, CornerType.T_R, iTRc_x, iTRc_y,
+                              config.Inverse_Radius_Top, config.Inverse_Radius_Top, 0);
+      }
+      if (config.Inverse_Radius_Bottom > 0) {
+        this.FillEllipseCorner(ctx, CornerType.B_L, iBLc_x, iBLc_y,
+                              config.Inverse_Radius_Bottom, config.Inverse_Radius_Bottom, 0);
+        this.FillEllipseCorner(ctx, CornerType.B_R, iBRc_x, iBRc_y,
+                              config.Inverse_Radius_Bottom, config.Inverse_Radius_Bottom, 0);
+      }
+    }
+  }
+}
+
+// =====================
+// 4. 表情定义
+// =====================
+const expressions = [
+  { name: 'Normal', cn: '正常', left: 'Preset_Normal', right: 'Preset_Normal' },
+  { name: 'Angry', cn: '生气', left: 'Preset_Angry', right: 'Preset_Angry' },
+  { name: 'Glee', cn: '大笑', left: 'Preset_Glee', right: 'Preset_Glee' },
+  { name: 'Happy', cn: '开心', left: 'Preset_Happy', right: 'Preset_Happy' },
+  { name: 'Sad', cn: '难过', left: 'Preset_Sad', right: 'Preset_Sad' },
+  { name: 'Worried', cn: '担心', left: 'Preset_Worried', right: 'Preset_Worried' },
+  { name: 'Focused', cn: '专注', left: 'Preset_Focused', right: 'Preset_Focused' },
+  { name: 'Annoyed', cn: '烦躁', left: 'Preset_Annoyed', right: 'Preset_Annoyed' },
+  { name: 'Surprised', cn: '惊讶', left: 'Preset_Surprised', right: 'Preset_Surprised' },
+  { name: 'Skeptic', cn: '怀疑', left: 'Preset_Skeptic', right: 'Preset_Skeptic' },
+  { name: 'Frustrated', cn: '泄气', left: 'Preset_Frustrated', right: 'Preset_Frustrated' },
+  { name: 'Unimpressed', cn: '无感', left: 'Preset_Unimpressed', right: 'Preset_Unimpressed' },
+  { name: 'Sleepy', cn: '困', left: 'Preset_Sleepy', right: 'Preset_Sleepy' },
+  { name: 'Suspicious', cn: '可疑', left: 'Preset_Suspicious', right: 'Preset_Suspicious' },
+  { name: 'Squint', cn: '眯眼', left: 'Preset_Squint', right: 'Preset_Squint' },
+  { name: 'Furious', cn: '暴怒', left: 'Preset_Furious', right: 'Preset_Furious' },
+  { name: 'Scared', cn: '害怕', left: 'Preset_Scared', right: 'Preset_Scared' },
+  { name: 'Awe', cn: '敬畏', left: 'Preset_Awe', right: 'Preset_Awe' }
+];
+
+// =====================
+// 5. 动画控制类
+// =====================
+class AnimationController {
+  static lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+  
+  static lerpConfig(cfgA, cfgB, t) {
+    const result = {};
+    for (let key in cfgA) {
+      result[key] = this.lerp(cfgA[key], cfgB[key], t);
+    }
+    return result;
+  }
+  
+  // 眨眼动画
+  static blink(config, t) {
+    const result = {...config};
+    // 眨眼周期是2秒
+    const blinkPhase = (Math.sin(t * Math.PI) + 1) / 2; // 0~1
+    // 眼睛高度在原始高度和最小高度(2px)之间变化
+    result.Height = this.lerp(config.Height, 2, blinkPhase);
+    return result;
+  }
+  
+  // 特殊动画效果
+  static specialEffects = {
+    // 大笑效果
+    glee: (config, t) => {
+      const result = {...config};
+      // 快速上下抖动
+      result.OffsetY += Math.sin(t * 10) * 2;
+      return result;
+    },
+    
+    // 开心效果
+    happy: (config, t) => {
+      const result = {...config};
+      // 眼睛变小并微微上扬
+      result.Height *= 0.5;
+      result.Slope_Top = 0.2 + Math.sin(t * 3) * 0.1;
+      return result;
+    },
+    
+    // 难过效果
+    sad: (config, t, isRightEye) => {
+      const result = {...config};
+      result.Slope_Top = (isRightEye ? -config.Slope_Top : config.Slope_Top) + Math.sin(t * 8) * 0.02;
+      return result;
+    },
+    
+    // 困倦效果
+    sleepy: (config, t) => {
+      const result = {...config};
+      // 眼睛缓慢眨动
+      const phase = (Math.sin(t * 0.5) + 1) / 2;
+      result.Height = this.lerp(config.Height, 2, phase);
+      return result;
+    },
+    
+    // 生气效果
+    angry: (config, t, isRightEye) => {
+      const result = {...config};
+      // 先镜像，再加动画扰动
+      result.Slope_Top = (isRightEye ? -config.Slope_Top : config.Slope_Top) + Math.sin(t * 12) * 0.02;
+      result.OffsetX += Math.sin(t * 15) * 1;
+      return result;
+    },
+    
+    // 惊讶效果
+    surprised: (config, t) => {
+      const result = {...config};
+      // 眼睛变大并微微抖动
+      result.Height *= 1.1 + Math.sin(t * 8) * 0.05;
+      result.Width *= 1.1 + Math.sin(t * 8) * 0.05;
+      result.OffsetX += Math.sin(t * 10) * 1;
+      return result;
+    },
+    
+    // 专注效果
+    focused: (config, t) => {
+      const result = {...config};
+      // 眼睛微微眯起
+      result.Height *= 0.7 + Math.sin(t * 2) * 0.1;
+      return result;
+    },
+
+    // 修改担心效果
+    worried: (config, t, isRightEye) => {
+      const result = {...config};
+      result.Slope_Top = (isRightEye ? -config.Slope_Top : config.Slope_Top) + Math.sin(t * 4) * 0.01;
+      result.OffsetY += Math.sin(t * 3) * 1;
+      return result;
+    },
+
+    // 修改眯眼效果
+    squint: (config, t) => {
+      const result = {...config};
+      // 眼睛缓慢眨动
+      result.Height = config.Height * (0.8 + Math.sin(t * 2) * 0.2);
+      return result;
+    },
+
+    // 修改害怕效果
+    scared: (config, t) => {
+      const result = {...config};
+      // 快速抖动
+      result.OffsetX += Math.sin(t * 15) * 1;
+      result.OffsetY += Math.cos(t * 15) * 1;
+      return result;
+    },
+
+    // 修改敬畏效果
+    awe: (config, t) => {
+      const result = {...config};
+      // 缓慢放大缩小
+      const scale = 1 + Math.sin(t * 2) * 0.1;
+      result.Height *= scale;
+      result.Width *= scale;
+      return result;
+    },
+
+    // 暴怒效果
+    furious: (config, t, isRightEye) => {
+      const result = {...config};
+      result.Slope_Top = (isRightEye ? -config.Slope_Top : config.Slope_Top) + Math.sin(t * 12) * 0.02;
+      result.OffsetX += Math.sin(t * 15) * 1.5;
+      return result;
+    }
+  };
+  
+  // 为其他表情添加默认动画
+  static {
+    const defaultAnim = (config, t) => {
+      // 默认添加轻微的眨眼效果
+      if (Math.sin(t * 0.5) > 0.95) { // 每隔一段时间眨眼
+        return this.blink(config, t * 5);
+      }
+      return config;
+    };
+    
+    // 为所有表情类型添加动画
+    expressions.forEach(expr => {
+      const type = expr.name.toLowerCase();
+      if (!this.specialEffects[type]) {
+        this.specialEffects[type] = defaultAnim;
+      }
+    });
+  }
+}
+
+// =====================
+// 6. 动态表情渲染
+// =====================
+function createFaceBlock(expr, idx) {
+  const block = document.createElement('div');
+  block.className = 'face-block';
+  const title = document.createElement('div');
+  title.className = 'face-title';
+  title.innerText = expr.cn + '（' + expr.name + '）';
+  block.appendChild(title);
+  const canvas = document.createElement('canvas');
+  canvas.width = DISPLAY_WIDTH;
+  canvas.height = DISPLAY_HEIGHT;
+  block.appendChild(canvas);
+  
+  // 动画控制
+  let t = 0;
+  const type = expr.name.toLowerCase();
+  const animate = () => {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 获取基础配置
+    let leftConfig = {...presets[expr.left]};
+    let rightConfig = {...presets[expr.right]};
+    
+    // 应用动画效果
+    const anim = AnimationController.specialEffects[type];
+    if (anim) {
+      leftConfig = anim(leftConfig, t, false);
+      rightConfig = anim(rightConfig, t, true);
+    }
+    
+    // 绘制眼睛（注意左右眼的区别）
+    EyeDrawer.Draw(ctx, 40, 32, leftConfig, false);  // 左眼
+    EyeDrawer.Draw(ctx, 88, 32, rightConfig, true);  // 右眼
+    
+    t += 0.05;
+    requestAnimationFrame(animate);
+  };
+  
+  animate();
+  return block;
+}
+
+// =====================
+// 7. 页面渲染
+// =====================
+const container = document.getElementById('faces-container');
+expressions.forEach((expr, idx) => {
+  container.appendChild(createFaceBlock(expr, idx));
+});
+  </script>
+</body>
+</html> 

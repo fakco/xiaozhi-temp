@@ -5,7 +5,7 @@
 #include "onewire_bus.h"
 #include "ds18b20.h"
 
-#define EXAMPLE_ONEWIRE_BUS_GPIO    18
+#define EXAMPLE_ONEWIRE_BUS_GPIO    13
 #define EXAMPLE_ONEWIRE_MAX_DS18B20 1
 
 static const char *TAG = "example";

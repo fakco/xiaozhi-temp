@@ -39,6 +39,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include "./temp.h"
+#include "./led_ser.h"
 
 #define TAG "EmojiBoard"
 
@@ -275,7 +276,8 @@ private:
     void InitializeIot() {
         // 新的MCP架构不再需要手动初始化Thing，由框架自动管理
         ESP_LOGI(TAG, "新版MCP架构已自动管理设备功能");
-        static DS18B20Sensor ds(GPIO_NUM_18);
+        static DS18B20Sensor temp_sensor(GPIO_NUM_13);
+        static LED_ser led_ser(GPIO_NUM_14);
     }
     
     // 切换屏幕

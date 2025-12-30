@@ -1,11 +1,12 @@
 #include <stdio.h>
+#include "board_config.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "onewire_bus.h"
 #include "ds18b20.h"
 
-#define EXAMPLE_ONEWIRE_BUS_GPIO    13
+//#define EXAMPLE_ONEWIRE_BUS_GPIO    GPIO_NUM_13
 #define EXAMPLE_ONEWIRE_MAX_DS18B20 1
 
 static const char *TAG = "example";
@@ -16,11 +17,11 @@ static ds18b20_device_handle_t ds18b20s[EXAMPLE_ONEWIRE_MAX_DS18B20];
 static int ds18b20_device_num = 0;
 static bool is_initialized = false;
 
-esp_err_t init_temp_sensor(void)
+esp_err_t init_temp_sensor(gpio_num_t gpio_num)
 {
     // 安装1-Wire总线
     onewire_bus_config_t bus_config = {
-        .bus_gpio_num = EXAMPLE_ONEWIRE_BUS_GPIO,
+        .bus_gpio_num = gpio_num,
         .flags = {
             .en_pull_up = true,
         }
@@ -29,7 +30,7 @@ esp_err_t init_temp_sensor(void)
         .max_rx_bytes = 10,
     };
     ESP_ERROR_CHECK(onewire_new_bus_rmt(&bus_config, &rmt_config, &bus));
-    ESP_LOGI(TAG, "1-Wire bus installed on GPIO%d", EXAMPLE_ONEWIRE_BUS_GPIO);
+    ESP_LOGI(TAG, "1-Wire bus installed on GPIO%d", gpio_num);
 
     // 创建设备迭代器
     onewire_device_iter_handle_t iter = NULL;

@@ -1,7 +1,7 @@
 #ifndef __temp_h
 #define __temp_h
 
-void init_temp_sensor(void);
+esp_err_t init_temp_sensor(gpio_num_t gpio_num);
 float get_temp(void);
 
 #include "mcp_server.h"
@@ -16,9 +16,10 @@ private:
 public: 
     explicit DS18B20Sensor(gpio_num_t gpio_num) : gpio_num_(gpio_num) {
         
-        //ESP_LOGI(TAG, "DS18B20Sensor initialized on GPIO %d", gpio_num_);
+
+        ESP_LOGI(TAG, "DS18B20Sensor initialized on GPIO %d", gpio_num_);
         auto& server = McpServer::GetInstance();
-        init_temp_sensor();
+        init_temp_sensor(gpio_num_);
         server.AddTool("获得温度", "返回温度值",     
                        PropertyList(), [this](const PropertyList&) {
                             temperature=get_temp();
